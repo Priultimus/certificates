@@ -1035,6 +1035,37 @@ retry:
 	return &roots, nil
 }
 
+// Roots performs the get intermediates request to the CA with an empty context
+// and returns the api.IntermediatesResponse struct.
+func (c *Client) Intermediates() (*api.IntermediatesResponse, error) {
+	return c.IntermediatesWithContext(context.Background())
+}
+
+// IntermediatesWithContext performs the get intermediates request to the CA with the provided context
+// and returns the api.IntermediatesResponse struct.
+func (c *Client) IntermediatesWithContext(ctx context.Context) (*api.IntermediatesResponse, error) {
+	var retried bool
+	u := c.endpoint.ResolveReference(&url.URL{Path: "/intermediates"})
+retry:
+	resp, err := c.client.GetWithContext(ctx, u.String())
+	if err != nil {
+		return nil, clientError(err)
+	}
+	if resp.StatusCode >= 400 {
+		if !retried && c.retryOnError(resp) { //nolint:contextcheck // deeply nested context; retry using the same context
+			retried = true
+			goto retry
+		}
+		return nil, readError(resp)
+	}
+	var intermediates api.IntermediatesResponse
+	if err := readJSON(resp.Body, &intermediates); err != nil {
+		return nil, errors.Wrapf(err, "error reading %s", u)
+	}
+	return &intermediates, nil
+}
+
+
 // Federation performs the get federation request to the CA with an empty context
 // and returns the api.FederationResponse struct.
 func (c *Client) Federation() (*api.FederationResponse, error) {
