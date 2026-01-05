@@ -22,6 +22,7 @@ type dbProvisioner struct {
 	Details      []byte                    `json:"details"`
 	X509Template *linkedca.Template        `json:"x509Template"`
 	SSHTemplate  *linkedca.Template        `json:"sshTemplate"`
+	Policy       *linkedca.Policy          `json:"policy,omitempty"`
 	CreatedAt    time.Time                 `json:"createdAt"`
 	DeletedAt    time.Time                 `json:"deletedAt"`
 	Webhooks     []dbWebhook               `json:"webhooks,omitempty"`
@@ -64,6 +65,7 @@ func (dbp *dbProvisioner) convert2linkedca() (*linkedca.Provisioner, error) {
 		Details:      details,
 		X509Template: dbp.X509Template,
 		SshTemplate:  dbp.SSHTemplate,
+		Policy:       dbp.Policy,
 		CreatedAt:    timestamppb.New(dbp.CreatedAt),
 		DeletedAt:    timestamppb.New(dbp.DeletedAt),
 		Webhooks:     dbWebhooksToLinkedca(dbp.Webhooks),
@@ -180,6 +182,7 @@ func (db *DB) CreateProvisioner(ctx context.Context, prov *linkedca.Provisioner)
 		Details:      details,
 		X509Template: prov.X509Template,
 		SSHTemplate:  prov.SshTemplate,
+		Policy:       prov.Policy,
 		CreatedAt:    clock.Now(),
 		Webhooks:     linkedcaWebhooksToDB(prov.Webhooks),
 	}
@@ -211,6 +214,7 @@ func (db *DB) UpdateProvisioner(ctx context.Context, prov *linkedca.Provisioner)
 	}
 	nu.X509Template = prov.X509Template
 	nu.SSHTemplate = prov.SshTemplate
+	nu.Policy = prov.Policy
 	nu.Webhooks = linkedcaWebhooksToDB(prov.Webhooks)
 
 	return db.save(ctx, prov.Id, nu, old, "provisioner", provisionersTable)

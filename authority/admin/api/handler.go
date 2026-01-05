@@ -66,7 +66,7 @@ func Route(r api.Router, options ...RouterOption) {
 	}
 
 	provisionerPolicyMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
-		return authnz(disabledInStandalone(loadProvisionerByName(next)))
+		return authnz(enabledInStandalone(loadProvisionerByName(next)))
 	}
 
 	acmePolicyMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
