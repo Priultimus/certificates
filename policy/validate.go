@@ -35,10 +35,10 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 	// TODO: gather all errors, or return early? Currently we return early on the first wrong name; check might fail for multiple names.
 	// Perhaps make that an option?
 	for _, dns := range dnsNames {
-		// if there are DNS names to check, no DNS constraints set, but there are other permitted constraints,
+		// if there are DNS names to check, no DNS constraints set (including regex), but there are other permitted constraints,
 		// then return error, because DNS should be explicitly configured to be allowed in that case. In case there are
 		// (other) excluded constraints, we'll allow a DNS (implicit allow; currently).
-		if e.numberOfDNSDomainConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
+		if e.numberOfDNSDomainConstraints == 0 && e.numberOfDNSRegexConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
 			return &NamePolicyError{
 				Reason:   NotAllowed,
 				NameType: DNSNameType,
@@ -73,6 +73,28 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 				detail:   fmt.Sprintf("cannot parse dns %q", dns),
 			}
 		}
+
+		// Check regex constraints first - they can permit or exclude
+		if err := e.checkRegexConstraints(DNSNameType, dns, e.permittedDNSRegexes, e.excludedDNSRegexes); err != nil {
+			return err
+		}
+
+		// If regex constraints matched (permitted and not excluded), skip domain constraints
+		if len(e.permittedDNSRegexes) > 0 && e.matchesAnyRegex(dns, e.permittedDNSRegexes) {
+			continue
+		}
+
+		// If there are permitted DNS regexes but no domain constraints, and the name didn't match
+		// any regex, deny it - regex-only policies should be strict
+		if len(e.permittedDNSRegexes) > 0 && len(e.permittedDNSDomains) == 0 {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: DNSNameType,
+				Name:     dns,
+				detail:   fmt.Sprintf("dns %q does not match any permitted DNS regex pattern", dns),
+			}
+		}
+
 		if err := checkNameConstraints(DNSNameType, dns, parsedDNS,
 			func(parsedName, constraint interface{}) (bool, error) {
 				return e.matchDomainConstraint(parsedName.(string), constraint.(string))
@@ -99,7 +121,7 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 	}
 
 	for _, email := range emailAddresses {
-		if e.numberOfEmailAddressConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
+		if e.numberOfEmailAddressConstraints == 0 && e.numberOfEmailRegexConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
 			return &NamePolicyError{
 				Reason:   NotAllowed,
 				NameType: EmailNameType,
@@ -129,6 +151,28 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 			}
 		}
 		mailbox.domain = domainASCII
+
+		// Check regex constraints first
+		if err := e.checkRegexConstraints(EmailNameType, email, e.permittedEmailRegexes, e.excludedEmailRegexes); err != nil {
+			return err
+		}
+
+		// If regex constraints matched (permitted and not excluded), skip domain constraints
+		if len(e.permittedEmailRegexes) > 0 && e.matchesAnyRegex(email, e.permittedEmailRegexes) {
+			continue
+		}
+
+		// If there are permitted email regexes but no email constraints, and the email didn't match
+		// any regex, deny it - regex-only policies should be strict
+		if len(e.permittedEmailRegexes) > 0 && len(e.permittedEmailAddresses) == 0 {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: EmailNameType,
+				Name:     email,
+				detail:   fmt.Sprintf("email %q does not match any permitted email regex pattern", email),
+			}
+		}
+
 		if err := checkNameConstraints(EmailNameType, email, mailbox,
 			func(parsedName, constraint interface{}) (bool, error) {
 				return e.matchEmailConstraint(parsedName.(rfc2821Mailbox), constraint.(string))
@@ -140,17 +184,61 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 	// TODO(hs): fix internationalization for URIs (IRIs)
 
 	for _, uri := range uris {
-		if e.numberOfURIDomainConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
+		uriStr := uri.String()
+		totalURIConstraints := e.numberOfURIDomainConstraints + e.numberOfURIConstraints + e.numberOfURIRegexConstraints
+		if totalURIConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
 			return &NamePolicyError{
 				Reason:   NotAllowed,
 				NameType: URINameType,
-				Name:     uri.String(),
-				detail:   fmt.Sprintf("uri %q is not explicitly permitted by any constraint", uri.String()),
+				Name:     uriStr,
+				detail:   fmt.Sprintf("uri %q is not explicitly permitted by any constraint", uriStr),
 			}
 		}
+
+		// Check regex constraints first
+		if err := e.checkRegexConstraints(URINameType, uriStr, e.permittedURIRegexes, e.excludedURIRegexes); err != nil {
+			return err
+		}
+
+		// If regex constraints matched (permitted and not excluded), skip other constraints
+		if len(e.permittedURIRegexes) > 0 && e.matchesAnyRegex(uriStr, e.permittedURIRegexes) {
+			continue
+		}
+
+		// Check new structured URI constraints (with scheme/path support)
+		if err := e.checkURIConstraints(uri); err != nil {
+			return err
+		}
+
+		// If new-style URI constraints matched, skip legacy domain constraints
+		if len(e.permittedURIConstraints) > 0 {
+			matched := false
+			for _, c := range e.permittedURIConstraints {
+				if m, _ := c.MatchURI(uri, e); m {
+					matched = true
+					break
+				}
+			}
+			if matched {
+				continue
+			}
+		}
+
+		// If there are permitted URI regexes or URI constraints but no domain constraints,
+		// and the URI didn't match any, deny it - regex/constraint-only policies should be strict
+		if (len(e.permittedURIRegexes) > 0 || len(e.permittedURIConstraints) > 0) && len(e.permittedURIDomains) == 0 {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: URINameType,
+				Name:     uriStr,
+				detail:   fmt.Sprintf("uri %q does not match any permitted URI constraint or regex pattern", uriStr),
+			}
+		}
+
+		// Fall back to legacy URI domain constraints
 		// TODO(hs): ideally we'd like the uri.String() to be the original contents; now
 		// it's transformed into ASCII. Prevent that here?
-		if err := checkNameConstraints(URINameType, uri.String(), uri,
+		if err := checkNameConstraints(URINameType, uriStr, uri,
 			func(parsedName, constraint interface{}) (bool, error) {
 				return e.matchURIConstraint(parsedName.(*url.URL), constraint.(string))
 			}, e.permittedURIDomains, e.excludedURIDomains); err != nil {
@@ -159,7 +247,7 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 	}
 
 	for _, principal := range principals {
-		if e.numberOfPrincipalConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
+		if e.numberOfPrincipalConstraints == 0 && e.numberOfPrincipalRegexConstraints == 0 && e.totalNumberOfPermittedConstraints > 0 {
 			return &NamePolicyError{
 				Reason:   NotAllowed,
 				NameType: PrincipalNameType,
@@ -167,6 +255,28 @@ func (e *NamePolicyEngine) validateNames(dnsNames []string, ips []net.IP, emailA
 				detail:   fmt.Sprintf("username principal %q is not explicitly permitted by any constraint", principal),
 			}
 		}
+
+		// Check regex constraints first
+		if err := e.checkRegexConstraints(PrincipalNameType, principal, e.permittedPrincipalRegexes, e.excludedPrincipalRegexes); err != nil {
+			return err
+		}
+
+		// If regex constraints matched (permitted and not excluded), skip string constraints
+		if len(e.permittedPrincipalRegexes) > 0 && e.matchesAnyRegex(principal, e.permittedPrincipalRegexes) {
+			continue
+		}
+
+		// If there are permitted principal regexes but no principal constraints, and the principal
+		// didn't match any regex, deny it - regex-only policies should be strict
+		if len(e.permittedPrincipalRegexes) > 0 && len(e.permittedPrincipals) == 0 {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: PrincipalNameType,
+				Name:     principal,
+				detail:   fmt.Sprintf("principal %q does not match any permitted principal regex pattern", principal),
+			}
+		}
+
 		// TODO: some validation? I.e. allowed characters?
 		if err := checkNameConstraints(PrincipalNameType, principal, principal,
 			func(parsedName, constraint interface{}) (bool, error) {
@@ -190,6 +300,27 @@ func (e *NamePolicyEngine) validateCommonName(commonName string) error {
 	// empty common names are not validated
 	if commonName == "" {
 		return nil
+	}
+
+	// Check common name regex constraints first
+	if e.numberOfCommonNameRegexConstraints > 0 {
+		if err := e.checkRegexConstraints(CNNameType, commonName, e.permittedCommonNameRegexes, e.excludedCommonNameRegexes); err != nil {
+			return err
+		}
+		// If regex constraints matched (permitted and not excluded), we're done
+		if len(e.permittedCommonNameRegexes) > 0 && e.matchesAnyRegex(commonName, e.permittedCommonNameRegexes) {
+			return nil
+		}
+		// If there are permitted CN regexes but no CN constraints, and the name didn't match
+		// any regex, deny it - regex-only policies should be strict
+		if len(e.permittedCommonNameRegexes) > 0 && len(e.permittedCommonNames) == 0 {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: CNNameType,
+				Name:     commonName,
+				detail:   fmt.Sprintf("common name %q does not match any permitted common name regex pattern", commonName),
+			}
+		}
 	}
 
 	if e.numberOfCommonNameConstraints > 0 {
@@ -642,4 +773,92 @@ func matchCommonNameConstraint(commonName, constraint string) (bool, error) {
 		return false, nil
 	}
 	return strings.EqualFold(commonName, constraint), nil
+}
+
+// checkRegexConstraints checks a name against regex constraints.
+// It returns an error if the name matches an excluded regex or
+// if there are permitted regexes but the name doesn't match any.
+func (e *NamePolicyEngine) checkRegexConstraints(nameType NameType, name string, permitted, excluded []*RegexConstraint) error {
+	// Check excluded regexes first
+	for _, rc := range excluded {
+		if rc.Match(name) {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: nameType,
+				Name:     name,
+				detail:   fmt.Sprintf("%s %q is excluded by regex constraint %q", nameType, name, rc.Pattern),
+			}
+		}
+	}
+
+	// If there are no permitted regexes, we're done (other constraints may apply)
+	if len(permitted) == 0 {
+		return nil
+	}
+
+	// Check if name matches any permitted regex
+	// Note: This doesn't return an error because other constraint types may permit the name
+	return nil
+}
+
+// matchesAnyRegex checks if a name matches any of the given regex constraints.
+func (e *NamePolicyEngine) matchesAnyRegex(name string, regexes []*RegexConstraint) bool {
+	for _, rc := range regexes {
+		if rc.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkURIConstraints checks a URI against the structured URI constraints.
+func (e *NamePolicyEngine) checkURIConstraints(uri *url.URL) error {
+	uriStr := uri.String()
+
+	// Check excluded URI constraints first
+	for _, c := range e.excludedURIConstraints {
+		matched, err := c.MatchURI(uri, e)
+		if err != nil {
+			return &NamePolicyError{
+				Reason:   CannotMatchNameToConstraint,
+				NameType: URINameType,
+				Name:     uriStr,
+				detail:   err.Error(),
+			}
+		}
+		if matched {
+			return &NamePolicyError{
+				Reason:   NotAllowed,
+				NameType: URINameType,
+				Name:     uriStr,
+				detail:   fmt.Sprintf("uri %q is excluded by constraint %q", uriStr, c.String()),
+			}
+		}
+	}
+
+	// If there are no permitted URI constraints, we're done (legacy constraints may apply)
+	if len(e.permittedURIConstraints) == 0 {
+		return nil
+	}
+
+	// Check if URI matches any permitted constraint
+	for _, c := range e.permittedURIConstraints {
+		matched, err := c.MatchURI(uri, e)
+		if err != nil {
+			// Errors during matching are fatal
+			return &NamePolicyError{
+				Reason:   CannotMatchNameToConstraint,
+				NameType: URINameType,
+				Name:     uriStr,
+				detail:   err.Error(),
+			}
+		}
+		if matched {
+			return nil // Found a match
+		}
+	}
+
+	// No permitted constraint matched - but don't return error here,
+	// legacy constraints may still permit it
+	return nil
 }

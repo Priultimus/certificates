@@ -110,16 +110,38 @@ type NamePolicyEngine struct {
 	permittedPrincipals     []string
 	excludedPrincipals      []string
 
+	// Enhanced URI constraints with scheme and path support
+	permittedURIConstraints []URIConstraint
+	excludedURIConstraints  []URIConstraint
+
+	// Regex constraints for flexible pattern matching
+	permittedDNSRegexes        []*RegexConstraint
+	excludedDNSRegexes         []*RegexConstraint
+	permittedEmailRegexes      []*RegexConstraint
+	excludedEmailRegexes       []*RegexConstraint
+	permittedURIRegexes        []*RegexConstraint
+	excludedURIRegexes         []*RegexConstraint
+	permittedPrincipalRegexes  []*RegexConstraint
+	excludedPrincipalRegexes   []*RegexConstraint
+	permittedCommonNameRegexes []*RegexConstraint
+	excludedCommonNameRegexes  []*RegexConstraint
+
 	// some internal counts for housekeeping
-	numberOfCommonNameConstraints     int
-	numberOfDNSDomainConstraints      int
-	numberOfIPRangeConstraints        int
-	numberOfEmailAddressConstraints   int
-	numberOfURIDomainConstraints      int
-	numberOfPrincipalConstraints      int
-	totalNumberOfPermittedConstraints int
-	totalNumberOfExcludedConstraints  int
-	totalNumberOfConstraints          int
+	numberOfCommonNameConstraints      int
+	numberOfDNSDomainConstraints       int
+	numberOfIPRangeConstraints         int
+	numberOfEmailAddressConstraints    int
+	numberOfURIDomainConstraints       int
+	numberOfPrincipalConstraints       int
+	numberOfURIConstraints             int
+	numberOfDNSRegexConstraints        int
+	numberOfEmailRegexConstraints      int
+	numberOfURIRegexConstraints        int
+	numberOfPrincipalRegexConstraints  int
+	numberOfCommonNameRegexConstraints int
+	totalNumberOfPermittedConstraints  int
+	totalNumberOfExcludedConstraints   int
+	totalNumberOfConstraints           int
 }
 
 // NewNamePolicyEngine creates a new NamePolicyEngine with NamePolicyOptions
@@ -137,6 +159,7 @@ func New(opts ...NamePolicyOption) (*NamePolicyEngine, error) {
 	e.permittedEmailAddresses = removeDuplicates(e.permittedEmailAddresses)
 	e.permittedURIDomains = removeDuplicates(e.permittedURIDomains)
 	e.permittedPrincipals = removeDuplicates(e.permittedPrincipals)
+	e.permittedURIConstraints = removeDuplicateURIConstraints(e.permittedURIConstraints)
 
 	e.excludedCommonNames = removeDuplicates(e.excludedCommonNames)
 	e.excludedDNSDomains = removeDuplicates(e.excludedDNSDomains)
@@ -144,6 +167,19 @@ func New(opts ...NamePolicyOption) (*NamePolicyEngine, error) {
 	e.excludedEmailAddresses = removeDuplicates(e.excludedEmailAddresses)
 	e.excludedURIDomains = removeDuplicates(e.excludedURIDomains)
 	e.excludedPrincipals = removeDuplicates(e.excludedPrincipals)
+	e.excludedURIConstraints = removeDuplicateURIConstraints(e.excludedURIConstraints)
+
+	// Remove duplicate regex constraints
+	e.permittedDNSRegexes = removeDuplicateRegexConstraints(e.permittedDNSRegexes)
+	e.excludedDNSRegexes = removeDuplicateRegexConstraints(e.excludedDNSRegexes)
+	e.permittedEmailRegexes = removeDuplicateRegexConstraints(e.permittedEmailRegexes)
+	e.excludedEmailRegexes = removeDuplicateRegexConstraints(e.excludedEmailRegexes)
+	e.permittedURIRegexes = removeDuplicateRegexConstraints(e.permittedURIRegexes)
+	e.excludedURIRegexes = removeDuplicateRegexConstraints(e.excludedURIRegexes)
+	e.permittedPrincipalRegexes = removeDuplicateRegexConstraints(e.permittedPrincipalRegexes)
+	e.excludedPrincipalRegexes = removeDuplicateRegexConstraints(e.excludedPrincipalRegexes)
+	e.permittedCommonNameRegexes = removeDuplicateRegexConstraints(e.permittedCommonNameRegexes)
+	e.excludedCommonNameRegexes = removeDuplicateRegexConstraints(e.excludedCommonNameRegexes)
 
 	e.numberOfCommonNameConstraints = len(e.permittedCommonNames) + len(e.excludedCommonNames)
 	e.numberOfDNSDomainConstraints = len(e.permittedDNSDomains) + len(e.excludedDNSDomains)
@@ -151,18 +187,71 @@ func New(opts ...NamePolicyOption) (*NamePolicyEngine, error) {
 	e.numberOfEmailAddressConstraints = len(e.permittedEmailAddresses) + len(e.excludedEmailAddresses)
 	e.numberOfURIDomainConstraints = len(e.permittedURIDomains) + len(e.excludedURIDomains)
 	e.numberOfPrincipalConstraints = len(e.permittedPrincipals) + len(e.excludedPrincipals)
+	e.numberOfURIConstraints = len(e.permittedURIConstraints) + len(e.excludedURIConstraints)
+	e.numberOfDNSRegexConstraints = len(e.permittedDNSRegexes) + len(e.excludedDNSRegexes)
+	e.numberOfEmailRegexConstraints = len(e.permittedEmailRegexes) + len(e.excludedEmailRegexes)
+	e.numberOfURIRegexConstraints = len(e.permittedURIRegexes) + len(e.excludedURIRegexes)
+	e.numberOfPrincipalRegexConstraints = len(e.permittedPrincipalRegexes) + len(e.excludedPrincipalRegexes)
+	e.numberOfCommonNameRegexConstraints = len(e.permittedCommonNameRegexes) + len(e.excludedCommonNameRegexes)
 
 	e.totalNumberOfPermittedConstraints = len(e.permittedCommonNames) + len(e.permittedDNSDomains) +
 		len(e.permittedIPRanges) + len(e.permittedEmailAddresses) + len(e.permittedURIDomains) +
-		len(e.permittedPrincipals)
+		len(e.permittedPrincipals) + len(e.permittedURIConstraints) +
+		len(e.permittedDNSRegexes) + len(e.permittedEmailRegexes) + len(e.permittedURIRegexes) +
+		len(e.permittedPrincipalRegexes) + len(e.permittedCommonNameRegexes)
 
 	e.totalNumberOfExcludedConstraints = len(e.excludedCommonNames) + len(e.excludedDNSDomains) +
 		len(e.excludedIPRanges) + len(e.excludedEmailAddresses) + len(e.excludedURIDomains) +
-		len(e.excludedPrincipals)
+		len(e.excludedPrincipals) + len(e.excludedURIConstraints) +
+		len(e.excludedDNSRegexes) + len(e.excludedEmailRegexes) + len(e.excludedURIRegexes) +
+		len(e.excludedPrincipalRegexes) + len(e.excludedCommonNameRegexes)
 
 	e.totalNumberOfConstraints = e.totalNumberOfPermittedConstraints + e.totalNumberOfExcludedConstraints
 
 	return e, nil
+}
+
+// removeDuplicateURIConstraints removes duplicate URI constraints.
+func removeDuplicateURIConstraints(items []URIConstraint) []URIConstraint {
+	if len(items) <= 1 {
+		return items
+	}
+
+	keys := make(map[string]struct{}, len(items))
+	ret := make([]URIConstraint, 0, len(items))
+	for _, item := range items {
+		key := item.String()
+		if _, ok := keys[key]; ok {
+			continue
+		}
+		keys[key] = struct{}{}
+		ret = append(ret, item)
+	}
+
+	return ret
+}
+
+// removeDuplicateRegexConstraints removes duplicate regex constraints.
+func removeDuplicateRegexConstraints(items []*RegexConstraint) []*RegexConstraint {
+	if len(items) <= 1 {
+		return items
+	}
+
+	keys := make(map[string]struct{}, len(items))
+	ret := make([]*RegexConstraint, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		key := item.Pattern
+		if _, ok := keys[key]; ok {
+			continue
+		}
+		keys[key] = struct{}{}
+		ret = append(ret, item)
+	}
+
+	return ret
 }
 
 // removeDuplicates returns a new slice of strings with

@@ -23,6 +23,16 @@ type dbX509Names struct {
 	IPRanges       []string `json:"ip,omitempty"`
 	EmailAddresses []string `json:"email,omitempty"`
 	URIDomains     []string `json:"uri,omitempty"`
+
+	// New fields for enhanced URI constraints with scheme/path support
+	// These fields are optional and backwards compatible (ignored by older versions)
+	URIConstraints []string `json:"uriConstraints,omitempty"`
+
+	// Regex pattern fields for flexible matching
+	DNSRegexes        []string `json:"dnsRegex,omitempty"`
+	EmailRegexes      []string `json:"emailRegex,omitempty"`
+	URIRegexes        []string `json:"uriRegex,omitempty"`
+	CommonNameRegexes []string `json:"cnRegex,omitempty"`
 }
 
 type dbSSHPolicy struct {
@@ -41,6 +51,10 @@ type dbSSHHostNames struct {
 	DNSDomains []string `json:"dns,omitempty"`
 	IPRanges   []string `json:"ip,omitempty"`
 	Principals []string `json:"principal,omitempty"`
+
+	// Regex pattern fields for flexible matching (backwards compatible)
+	DNSRegexes       []string `json:"dnsRegex,omitempty"`
+	PrincipalRegexes []string `json:"principalRegex,omitempty"`
 }
 
 type dbSSHUserPolicy struct {
@@ -51,6 +65,10 @@ type dbSSHUserPolicy struct {
 type dbSSHUserNames struct {
 	EmailAddresses []string `json:"email,omitempty"`
 	Principals     []string `json:"principal,omitempty"`
+
+	// Regex pattern fields for flexible matching (backwards compatible)
+	EmailRegexes     []string `json:"emailRegex,omitempty"`
+	PrincipalRegexes []string `json:"principalRegex,omitempty"`
 }
 
 type dbPolicy struct {
@@ -182,6 +200,12 @@ func dbToLinked(p *dbPolicy) *linkedca.Policy {
 			r.X509.Allow.Ips = allow.IPRanges
 			r.X509.Allow.Uris = allow.URIDomains
 			r.X509.Allow.CommonNames = allow.CommonNames
+			// New fields for enhanced URI constraints and regex support
+			r.X509.Allow.UriConstraints = allow.URIConstraints
+			r.X509.Allow.DnsRegex = allow.DNSRegexes
+			r.X509.Allow.EmailRegex = allow.EmailRegexes
+			r.X509.Allow.UriRegex = allow.URIRegexes
+			r.X509.Allow.CommonNameRegex = allow.CommonNameRegexes
 		}
 		if deny := x509.Deny; deny != nil {
 			r.X509.Deny = &linkedca.X509Names{}
@@ -190,6 +214,12 @@ func dbToLinked(p *dbPolicy) *linkedca.Policy {
 			r.X509.Deny.Ips = deny.IPRanges
 			r.X509.Deny.Uris = deny.URIDomains
 			r.X509.Deny.CommonNames = deny.CommonNames
+			// New fields for enhanced URI constraints and regex support
+			r.X509.Deny.UriConstraints = deny.URIConstraints
+			r.X509.Deny.DnsRegex = deny.DNSRegexes
+			r.X509.Deny.EmailRegex = deny.EmailRegexes
+			r.X509.Deny.UriRegex = deny.URIRegexes
+			r.X509.Deny.CommonNameRegex = deny.CommonNameRegexes
 		}
 		r.X509.AllowWildcardNames = x509.AllowWildcardNames
 	}
@@ -202,12 +232,18 @@ func dbToLinked(p *dbPolicy) *linkedca.Policy {
 				r.Ssh.Host.Allow.Dns = allow.DNSDomains
 				r.Ssh.Host.Allow.Ips = allow.IPRanges
 				r.Ssh.Host.Allow.Principals = allow.Principals
+				// New fields for regex support
+				r.Ssh.Host.Allow.DnsRegex = allow.DNSRegexes
+				r.Ssh.Host.Allow.PrincipalRegex = allow.PrincipalRegexes
 			}
 			if deny := host.Deny; deny != nil {
 				r.Ssh.Host.Deny = &linkedca.SSHHostNames{}
 				r.Ssh.Host.Deny.Dns = deny.DNSDomains
 				r.Ssh.Host.Deny.Ips = deny.IPRanges
 				r.Ssh.Host.Deny.Principals = deny.Principals
+				// New fields for regex support
+				r.Ssh.Host.Deny.DnsRegex = deny.DNSRegexes
+				r.Ssh.Host.Deny.PrincipalRegex = deny.PrincipalRegexes
 			}
 		}
 		if user := ssh.User; user != nil {
@@ -216,11 +252,17 @@ func dbToLinked(p *dbPolicy) *linkedca.Policy {
 				r.Ssh.User.Allow = &linkedca.SSHUserNames{}
 				r.Ssh.User.Allow.Emails = allow.EmailAddresses
 				r.Ssh.User.Allow.Principals = allow.Principals
+				// New fields for regex support
+				r.Ssh.User.Allow.EmailRegex = allow.EmailRegexes
+				r.Ssh.User.Allow.PrincipalRegex = allow.PrincipalRegexes
 			}
 			if deny := user.Deny; deny != nil {
 				r.Ssh.User.Deny = &linkedca.SSHUserNames{}
 				r.Ssh.User.Deny.Emails = deny.EmailAddresses
 				r.Ssh.User.Deny.Principals = deny.Principals
+				// New fields for regex support
+				r.Ssh.User.Deny.EmailRegex = deny.EmailRegexes
+				r.Ssh.User.Deny.PrincipalRegex = deny.PrincipalRegexes
 			}
 		}
 	}
@@ -259,6 +301,22 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 			if allow.CommonNames != nil {
 				r.X509.Allow.CommonNames = allow.CommonNames
 			}
+			// New fields for enhanced URI constraints and regex support
+			if allow.UriConstraints != nil {
+				r.X509.Allow.URIConstraints = allow.UriConstraints
+			}
+			if allow.DnsRegex != nil {
+				r.X509.Allow.DNSRegexes = allow.DnsRegex
+			}
+			if allow.EmailRegex != nil {
+				r.X509.Allow.EmailRegexes = allow.EmailRegex
+			}
+			if allow.UriRegex != nil {
+				r.X509.Allow.URIRegexes = allow.UriRegex
+			}
+			if allow.CommonNameRegex != nil {
+				r.X509.Allow.CommonNameRegexes = allow.CommonNameRegex
+			}
 		}
 		if deny := x509.GetDeny(); deny != nil {
 			r.X509.Deny = &dbX509Names{}
@@ -276,6 +334,22 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 			}
 			if deny.CommonNames != nil {
 				r.X509.Deny.CommonNames = deny.CommonNames
+			}
+			// New fields for enhanced URI constraints and regex support
+			if deny.UriConstraints != nil {
+				r.X509.Deny.URIConstraints = deny.UriConstraints
+			}
+			if deny.DnsRegex != nil {
+				r.X509.Deny.DNSRegexes = deny.DnsRegex
+			}
+			if deny.EmailRegex != nil {
+				r.X509.Deny.EmailRegexes = deny.EmailRegex
+			}
+			if deny.UriRegex != nil {
+				r.X509.Deny.URIRegexes = deny.UriRegex
+			}
+			if deny.CommonNameRegex != nil {
+				r.X509.Deny.CommonNameRegexes = deny.CommonNameRegex
 			}
 		}
 
@@ -298,6 +372,13 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 				if allow.Principals != nil {
 					r.SSH.Host.Allow.Principals = allow.Principals
 				}
+				// New fields for regex support
+				if allow.DnsRegex != nil {
+					r.SSH.Host.Allow.DNSRegexes = allow.DnsRegex
+				}
+				if allow.PrincipalRegex != nil {
+					r.SSH.Host.Allow.PrincipalRegexes = allow.PrincipalRegex
+				}
 			}
 			if deny := host.GetDeny(); deny != nil {
 				r.SSH.Host.Deny = &dbSSHHostNames{}
@@ -309,6 +390,13 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 				}
 				if deny.Principals != nil {
 					r.SSH.Host.Deny.Principals = deny.Principals
+				}
+				// New fields for regex support
+				if deny.DnsRegex != nil {
+					r.SSH.Host.Deny.DNSRegexes = deny.DnsRegex
+				}
+				if deny.PrincipalRegex != nil {
+					r.SSH.Host.Deny.PrincipalRegexes = deny.PrincipalRegex
 				}
 			}
 		}
@@ -322,6 +410,13 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 				if allow.Principals != nil {
 					r.SSH.User.Allow.Principals = allow.Principals
 				}
+				// New fields for regex support
+				if allow.EmailRegex != nil {
+					r.SSH.User.Allow.EmailRegexes = allow.EmailRegex
+				}
+				if allow.PrincipalRegex != nil {
+					r.SSH.User.Allow.PrincipalRegexes = allow.PrincipalRegex
+				}
 			}
 			if deny := user.GetDeny(); deny != nil {
 				r.SSH.User.Deny = &dbSSHUserNames{}
@@ -330,6 +425,13 @@ func linkedToDB(p *linkedca.Policy) *dbPolicy {
 				}
 				if deny.Principals != nil {
 					r.SSH.User.Deny.Principals = deny.Principals
+				}
+				// New fields for regex support
+				if deny.EmailRegex != nil {
+					r.SSH.User.Deny.EmailRegexes = deny.EmailRegex
+				}
+				if deny.PrincipalRegex != nil {
+					r.SSH.User.Deny.PrincipalRegexes = deny.PrincipalRegex
 				}
 			}
 		}

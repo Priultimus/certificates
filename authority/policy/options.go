@@ -54,6 +54,17 @@ type X509NameOptions struct {
 	IPRanges       []string `json:"ip,omitempty"`
 	EmailAddresses []string `json:"email,omitempty"`
 	URIDomains     []string `json:"uri,omitempty"`
+
+	// URIConstraints contains URI constraints with scheme and path support.
+	// Format: "scheme://domain/path" or just "domain" for backwards compatibility.
+	// Supports wildcards: "*.example.com", "https://example.com/api/*"
+	URIConstraints []string `json:"uriConstraints,omitempty"`
+
+	// Regex patterns for flexible matching (applied before other constraints)
+	DNSRegexes        []string `json:"dnsRegex,omitempty"`
+	EmailRegexes      []string `json:"emailRegex,omitempty"`
+	URIRegexes        []string `json:"uriRegex,omitempty"`
+	CommonNameRegexes []string `json:"cnRegex,omitempty"`
 }
 
 // HasNames checks if the AllowedNameOptions has one or more
@@ -63,7 +74,12 @@ func (o *X509NameOptions) HasNames() bool {
 		len(o.DNSDomains) > 0 ||
 		len(o.IPRanges) > 0 ||
 		len(o.EmailAddresses) > 0 ||
-		len(o.URIDomains) > 0
+		len(o.URIDomains) > 0 ||
+		len(o.URIConstraints) > 0 ||
+		len(o.DNSRegexes) > 0 ||
+		len(o.EmailRegexes) > 0 ||
+		len(o.URIRegexes) > 0 ||
+		len(o.CommonNameRegexes) > 0
 }
 
 // GetAllowedNameOptions returns x509 allowed name policy configuration
@@ -164,6 +180,11 @@ type SSHNameOptions struct {
 	IPRanges       []string `json:"ip,omitempty"`
 	EmailAddresses []string `json:"email,omitempty"`
 	Principals     []string `json:"principal,omitempty"`
+
+	// Regex patterns for flexible matching
+	DNSRegexes       []string `json:"dnsRegex,omitempty"`
+	EmailRegexes     []string `json:"emailRegex,omitempty"`
+	PrincipalRegexes []string `json:"principalRegex,omitempty"`
 }
 
 // GetAllowedNameOptions returns the AllowedSSHNameOptions, which models the
@@ -190,5 +211,8 @@ func (o *SSHNameOptions) HasNames() bool {
 	return len(o.DNSDomains) > 0 ||
 		len(o.IPRanges) > 0 ||
 		len(o.EmailAddresses) > 0 ||
-		len(o.Principals) > 0
+		len(o.Principals) > 0 ||
+		len(o.DNSRegexes) > 0 ||
+		len(o.EmailRegexes) > 0 ||
+		len(o.PrincipalRegexes) > 0
 }

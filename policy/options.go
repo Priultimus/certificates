@@ -240,6 +240,204 @@ func WithExcludedPrincipals(principals ...string) NamePolicyOption {
 	}
 }
 
+// WithPermittedURIConstraints adds URI constraints with scheme and path support.
+// The constraint format can be:
+//   - "example.com" - domain only (matches any scheme/path)
+//   - "https://example.com" - specific scheme + domain
+//   - "https://example.com/path" - scheme + domain + exact path
+//   - "https://example.com/api/*" - scheme + domain + path prefix
+//   - "*.example.com" - wildcard domain
+func WithPermittedURIConstraints(constraints ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		uriConstraints := make([]URIConstraint, 0, len(constraints))
+		for _, c := range constraints {
+			parsed, err := ParseURIConstraint(c)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted URI constraint %q: %w", c, err)
+			}
+			uriConstraints = append(uriConstraints, parsed)
+		}
+		e.permittedURIConstraints = uriConstraints
+		return nil
+	}
+}
+
+// WithExcludedURIConstraints adds excluded URI constraints with scheme and path support.
+func WithExcludedURIConstraints(constraints ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		uriConstraints := make([]URIConstraint, 0, len(constraints))
+		for _, c := range constraints {
+			parsed, err := ParseURIConstraint(c)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded URI constraint %q: %w", c, err)
+			}
+			uriConstraints = append(uriConstraints, parsed)
+		}
+		e.excludedURIConstraints = uriConstraints
+		return nil
+	}
+}
+
+// WithPermittedDNSRegexes adds permitted DNS name regex patterns.
+func WithPermittedDNSRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted DNS regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.permittedDNSRegexes = regexes
+		return nil
+	}
+}
+
+// WithExcludedDNSRegexes adds excluded DNS name regex patterns.
+func WithExcludedDNSRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded DNS regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.excludedDNSRegexes = regexes
+		return nil
+	}
+}
+
+// WithPermittedEmailRegexes adds permitted email address regex patterns.
+func WithPermittedEmailRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted email regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.permittedEmailRegexes = regexes
+		return nil
+	}
+}
+
+// WithExcludedEmailRegexes adds excluded email address regex patterns.
+func WithExcludedEmailRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded email regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.excludedEmailRegexes = regexes
+		return nil
+	}
+}
+
+// WithPermittedURIRegexes adds permitted URI regex patterns.
+func WithPermittedURIRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted URI regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.permittedURIRegexes = regexes
+		return nil
+	}
+}
+
+// WithExcludedURIRegexes adds excluded URI regex patterns.
+func WithExcludedURIRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded URI regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.excludedURIRegexes = regexes
+		return nil
+	}
+}
+
+// WithPermittedPrincipalRegexes adds permitted principal regex patterns.
+func WithPermittedPrincipalRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted principal regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.permittedPrincipalRegexes = regexes
+		return nil
+	}
+}
+
+// WithExcludedPrincipalRegexes adds excluded principal regex patterns.
+func WithExcludedPrincipalRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded principal regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.excludedPrincipalRegexes = regexes
+		return nil
+	}
+}
+
+// WithPermittedCommonNameRegexes adds permitted common name regex patterns.
+func WithPermittedCommonNameRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse permitted common name regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.permittedCommonNameRegexes = regexes
+		return nil
+	}
+}
+
+// WithExcludedCommonNameRegexes adds excluded common name regex patterns.
+func WithExcludedCommonNameRegexes(patterns ...string) NamePolicyOption {
+	return func(e *NamePolicyEngine) error {
+		regexes := make([]*RegexConstraint, 0, len(patterns))
+		for _, p := range patterns {
+			rc, err := NewRegexConstraint(p)
+			if err != nil {
+				return fmt.Errorf("cannot parse excluded common name regex %q: %w", p, err)
+			}
+			regexes = append(regexes, rc)
+		}
+		e.excludedCommonNameRegexes = regexes
+		return nil
+	}
+}
+
 func networkFor(ip net.IP) *net.IPNet {
 	var mask net.IPMask
 	if !isIPv4(ip) {

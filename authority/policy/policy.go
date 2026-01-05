@@ -36,6 +36,25 @@ func NewX509PolicyEngine(policyOptions X509PolicyOptionsInterface) (X509Policy, 
 			policy.WithPermittedEmailAddresses(allowed.EmailAddresses...),
 			policy.WithPermittedURIDomains(allowed.URIDomains...),
 		)
+
+		// Add URI constraints with scheme/path support
+		if len(allowed.URIConstraints) > 0 {
+			options = append(options, policy.WithPermittedURIConstraints(allowed.URIConstraints...))
+		}
+
+		// Add regex constraints
+		if len(allowed.DNSRegexes) > 0 {
+			options = append(options, policy.WithPermittedDNSRegexes(allowed.DNSRegexes...))
+		}
+		if len(allowed.EmailRegexes) > 0 {
+			options = append(options, policy.WithPermittedEmailRegexes(allowed.EmailRegexes...))
+		}
+		if len(allowed.URIRegexes) > 0 {
+			options = append(options, policy.WithPermittedURIRegexes(allowed.URIRegexes...))
+		}
+		if len(allowed.CommonNameRegexes) > 0 {
+			options = append(options, policy.WithPermittedCommonNameRegexes(allowed.CommonNameRegexes...))
+		}
 	}
 
 	denied := policyOptions.GetDeniedNameOptions()
@@ -47,6 +66,25 @@ func NewX509PolicyEngine(policyOptions X509PolicyOptionsInterface) (X509Policy, 
 			policy.WithExcludedEmailAddresses(denied.EmailAddresses...),
 			policy.WithExcludedURIDomains(denied.URIDomains...),
 		)
+
+		// Add excluded URI constraints with scheme/path support
+		if len(denied.URIConstraints) > 0 {
+			options = append(options, policy.WithExcludedURIConstraints(denied.URIConstraints...))
+		}
+
+		// Add excluded regex constraints
+		if len(denied.DNSRegexes) > 0 {
+			options = append(options, policy.WithExcludedDNSRegexes(denied.DNSRegexes...))
+		}
+		if len(denied.EmailRegexes) > 0 {
+			options = append(options, policy.WithExcludedEmailRegexes(denied.EmailRegexes...))
+		}
+		if len(denied.URIRegexes) > 0 {
+			options = append(options, policy.WithExcludedURIRegexes(denied.URIRegexes...))
+		}
+		if len(denied.CommonNameRegexes) > 0 {
+			options = append(options, policy.WithExcludedCommonNameRegexes(denied.CommonNameRegexes...))
+		}
 	}
 
 	// ensure no policy engine is returned when no name options were provided
@@ -124,6 +162,17 @@ func newSSHPolicyEngine(policyOptions SSHPolicyOptionsInterface, typ sshPolicyEn
 			policy.WithPermittedEmailAddresses(allowed.EmailAddresses...),
 			policy.WithPermittedPrincipals(allowed.Principals...),
 		)
+
+		// Add regex constraints
+		if len(allowed.DNSRegexes) > 0 {
+			options = append(options, policy.WithPermittedDNSRegexes(allowed.DNSRegexes...))
+		}
+		if len(allowed.EmailRegexes) > 0 {
+			options = append(options, policy.WithPermittedEmailRegexes(allowed.EmailRegexes...))
+		}
+		if len(allowed.PrincipalRegexes) > 0 {
+			options = append(options, policy.WithPermittedPrincipalRegexes(allowed.PrincipalRegexes...))
+		}
 	}
 
 	if denied != nil && denied.HasNames() {
@@ -133,6 +182,17 @@ func newSSHPolicyEngine(policyOptions SSHPolicyOptionsInterface, typ sshPolicyEn
 			policy.WithExcludedEmailAddresses(denied.EmailAddresses...),
 			policy.WithExcludedPrincipals(denied.Principals...),
 		)
+
+		// Add excluded regex constraints
+		if len(denied.DNSRegexes) > 0 {
+			options = append(options, policy.WithExcludedDNSRegexes(denied.DNSRegexes...))
+		}
+		if len(denied.EmailRegexes) > 0 {
+			options = append(options, policy.WithExcludedEmailRegexes(denied.EmailRegexes...))
+		}
+		if len(denied.PrincipalRegexes) > 0 {
+			options = append(options, policy.WithExcludedPrincipalRegexes(denied.PrincipalRegexes...))
+		}
 	}
 
 	// ensure no policy engine is returned when no name options were provided
@@ -177,6 +237,22 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 			if allow.CommonNames != nil {
 				opts.X509.AllowedNames.CommonNames = allow.CommonNames
 			}
+			// New fields for enhanced URI constraints and regex support
+			if allow.UriConstraints != nil {
+				opts.X509.AllowedNames.URIConstraints = allow.UriConstraints
+			}
+			if allow.DnsRegex != nil {
+				opts.X509.AllowedNames.DNSRegexes = allow.DnsRegex
+			}
+			if allow.EmailRegex != nil {
+				opts.X509.AllowedNames.EmailRegexes = allow.EmailRegex
+			}
+			if allow.UriRegex != nil {
+				opts.X509.AllowedNames.URIRegexes = allow.UriRegex
+			}
+			if allow.CommonNameRegex != nil {
+				opts.X509.AllowedNames.CommonNameRegexes = allow.CommonNameRegex
+			}
 		}
 		if deny := x509.GetDeny(); deny != nil {
 			opts.X509.DeniedNames = &X509NameOptions{}
@@ -194,6 +270,22 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 			}
 			if deny.CommonNames != nil {
 				opts.X509.DeniedNames.CommonNames = deny.CommonNames
+			}
+			// New fields for enhanced URI constraints and regex support
+			if deny.UriConstraints != nil {
+				opts.X509.DeniedNames.URIConstraints = deny.UriConstraints
+			}
+			if deny.DnsRegex != nil {
+				opts.X509.DeniedNames.DNSRegexes = deny.DnsRegex
+			}
+			if deny.EmailRegex != nil {
+				opts.X509.DeniedNames.EmailRegexes = deny.EmailRegex
+			}
+			if deny.UriRegex != nil {
+				opts.X509.DeniedNames.URIRegexes = deny.UriRegex
+			}
+			if deny.CommonNameRegex != nil {
+				opts.X509.DeniedNames.CommonNameRegexes = deny.CommonNameRegex
 			}
 		}
 
@@ -216,6 +308,13 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 				if allow.Principals != nil {
 					opts.SSH.Host.AllowedNames.Principals = allow.Principals
 				}
+				// New fields for regex support
+				if allow.DnsRegex != nil {
+					opts.SSH.Host.AllowedNames.DNSRegexes = allow.DnsRegex
+				}
+				if allow.PrincipalRegex != nil {
+					opts.SSH.Host.AllowedNames.PrincipalRegexes = allow.PrincipalRegex
+				}
 			}
 			if deny := host.GetDeny(); deny != nil {
 				opts.SSH.Host.DeniedNames = &SSHNameOptions{}
@@ -227,6 +326,13 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 				}
 				if deny.Principals != nil {
 					opts.SSH.Host.DeniedNames.Principals = deny.Principals
+				}
+				// New fields for regex support
+				if deny.DnsRegex != nil {
+					opts.SSH.Host.DeniedNames.DNSRegexes = deny.DnsRegex
+				}
+				if deny.PrincipalRegex != nil {
+					opts.SSH.Host.DeniedNames.PrincipalRegexes = deny.PrincipalRegex
 				}
 			}
 		}
@@ -240,6 +346,13 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 				if allow.Principals != nil {
 					opts.SSH.User.AllowedNames.Principals = allow.Principals
 				}
+				// New fields for regex support
+				if allow.EmailRegex != nil {
+					opts.SSH.User.AllowedNames.EmailRegexes = allow.EmailRegex
+				}
+				if allow.PrincipalRegex != nil {
+					opts.SSH.User.AllowedNames.PrincipalRegexes = allow.PrincipalRegex
+				}
 			}
 			if deny := user.GetDeny(); deny != nil {
 				opts.SSH.User.DeniedNames = &SSHNameOptions{}
@@ -248,6 +361,13 @@ func LinkedToCertificates(p *linkedca.Policy) *Options {
 				}
 				if deny.Principals != nil {
 					opts.SSH.User.DeniedNames.Principals = deny.Principals
+				}
+				// New fields for regex support
+				if deny.EmailRegex != nil {
+					opts.SSH.User.DeniedNames.EmailRegexes = deny.EmailRegex
+				}
+				if deny.PrincipalRegex != nil {
+					opts.SSH.User.DeniedNames.PrincipalRegexes = deny.PrincipalRegex
 				}
 			}
 		}
