@@ -504,18 +504,28 @@ func optionsToCertificates(p *linkedca.Provisioner) *provisioner.Options {
 		if x := pol.GetX509(); x != nil {
 			if allow := x.GetAllow(); allow != nil {
 				ops.X509.AllowedNames = &policy.X509NameOptions{
-					DNSDomains:     allow.Dns,
-					IPRanges:       allow.Ips,
-					EmailAddresses: allow.Emails,
-					URIDomains:     allow.Uris,
+					DNSDomains:        allow.Dns,
+					IPRanges:          allow.Ips,
+					EmailAddresses:    allow.Emails,
+					URIDomains:        allow.Uris,
+					URIConstraints:    allow.UriConstraints,
+					DNSRegexes:        allow.DnsRegex,
+					EmailRegexes:      allow.EmailRegex,
+					URIRegexes:        allow.UriRegex,
+					CommonNameRegexes: allow.CommonNameRegex,
 				}
 			}
 			if deny := x.GetDeny(); deny != nil {
 				ops.X509.DeniedNames = &policy.X509NameOptions{
-					DNSDomains:     deny.Dns,
-					IPRanges:       deny.Ips,
-					EmailAddresses: deny.Emails,
-					URIDomains:     deny.Uris,
+					DNSDomains:        deny.Dns,
+					IPRanges:          deny.Ips,
+					EmailAddresses:    deny.Emails,
+					URIDomains:        deny.Uris,
+					URIConstraints:    deny.UriConstraints,
+					DNSRegexes:        deny.DnsRegex,
+					EmailRegexes:      deny.EmailRegex,
+					URIRegexes:        deny.UriRegex,
+					CommonNameRegexes: deny.CommonNameRegex,
 				}
 			}
 		}
