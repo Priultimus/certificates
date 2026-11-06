@@ -143,7 +143,7 @@ func enforceRequestID(r *http.Request) {
 func (c *uaClient) Do(req *http.Request) (*http.Response, error) {
 	req.Header.Set("User-Agent", UserAgent)
 	enforceRequestID(req)
-	return c.Client.Do(req)
+	return c.Client.Do(req) //nolint:gosec // request to user-configured CA server
 }
 
 // RetryFunc defines the method used to retry a request. If it returns true, the
@@ -153,8 +153,13 @@ type RetryFunc func(code int) bool
 // ClientOption is the type of options passed to the Client constructor.
 type ClientOption func(o *clientOptions) error
 
+// TransportDecorator is the type used to support customization of the HTTP
+// transport.
+type TransportDecorator func(http.RoundTripper) http.RoundTripper
+
 type clientOptions struct {
 	transport            http.RoundTripper
+	transportDecorator   TransportDecorator
 	timeout              time.Duration
 	rootSHA256           string
 	rootFilename         string
@@ -272,7 +277,8 @@ func (o *clientOptions) getTransport(endpoint string) (tr http.RoundTripper, err
 		}
 	}
 
-	return tr, nil
+	// Wrap the transport using the decorator function if necessary
+	return decorateRoundTripper(tr, o.transportDecorator), nil
 }
 
 // WithTransport adds a custom transport to the Client. It will fail if a
@@ -283,6 +289,16 @@ func WithTransport(tr http.RoundTripper) ClientOption {
 			return err
 		}
 		o.transport = tr
+		return nil
+	}
+}
+
+// WithTransportDecorator allows customization of the HTTP transport used by the
+// client. The provided function receives the configured [http.RoundTripper] and
+// can wrap it with additional functionality.
+func WithTransportDecorator(fn TransportDecorator) ClientOption {
+	return func(o *clientOptions) error {
+		o.transportDecorator = fn
 		return nil
 	}
 }
@@ -406,7 +422,7 @@ func WithTimeout(d time.Duration) ClientOption {
 }
 
 func getTransportFromFile(filename string) (http.RoundTripper, error) {
-	data, err := os.ReadFile(filename)
+	data, err := os.ReadFile(filename) // #nosec G703 -- filename is based on configuration; data read from file is processed with expected format
 	if err != nil {
 		return nil, errors.Wrapf(err, "error reading %s", filename)
 	}
@@ -562,11 +578,12 @@ func WithProvisionerName(name string) ProvisionerOption {
 
 // Client implements an HTTP client for the CA server.
 type Client struct {
-	client    *uaClient
-	endpoint  *url.URL
-	retryFunc RetryFunc
-	timeout   time.Duration
-	opts      []ClientOption
+	client             *uaClient
+	endpoint           *url.URL
+	retryFunc          RetryFunc
+	timeout            time.Duration
+	opts               []ClientOption
+	transportDecorator TransportDecorator
 }
 
 // NewClient creates a new Client with the given endpoint and options.
@@ -587,11 +604,12 @@ func NewClient(endpoint string, opts ...ClientOption) (*Client, error) {
 	}
 
 	return &Client{
-		client:    newClient(tr, o.timeout),
-		endpoint:  u,
-		retryFunc: o.retryFunc,
-		timeout:   o.timeout,
-		opts:      opts,
+		client:             newClient(tr, o.timeout),
+		endpoint:           u,
+		retryFunc:          o.retryFunc,
+		timeout:            o.timeout,
+		opts:               opts,
+		transportDecorator: o.transportDecorator,
 	}, nil
 }
 
@@ -1613,4 +1631,11 @@ func clientError(err error) error {
 			strings.ToUpper(uerr.Op), uerr.URL, uerr.Err)
 	}
 	return fmt.Errorf("client request failed: %w", err)
+}
+
+func decorateRoundTripper(tr http.RoundTripper, td TransportDecorator) http.RoundTripper {
+	if td != nil {
+		return td(tr)
+	}
+	return tr
 }
